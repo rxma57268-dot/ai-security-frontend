@@ -37,6 +37,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import type { AttackPattern } from '@/lib/task'
+import { apiFetch } from '@/lib/api'
 
 const EXECUTION_METHODS = ['手动', '自动脚本', 'fuzz'] as const
 
@@ -78,7 +79,7 @@ export default function NewTaskPage() {
   useEffect(() => {
     async function fetchPatterns() {
       try {
-        const res = await fetch('/api/patterns')
+        const res = await apiFetch('/api/patterns')
         if (!res.ok) {
           throw new Error(`请求失败：${res.status} ${res.statusText}`)
         }
@@ -97,7 +98,7 @@ export default function NewTaskPage() {
   async function onSubmit(values: FormValues) {
     setSubmitting(true)
     try {
-      const res = await fetch('/api/tasks', {
+      const res = await apiFetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
