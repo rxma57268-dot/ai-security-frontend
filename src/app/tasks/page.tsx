@@ -44,6 +44,7 @@ import {
   severityMap,
   type Task,
 } from '@/lib/task'
+import { apiFetch } from '@/lib/api'
 
 const STATUS_OPTIONS = ['全部', '待执行', '执行中', '完成', '失败'] as const
 const PAGE_SIZE = 8
@@ -60,7 +61,7 @@ export default function TasksPage() {
   useEffect(() => {
     async function fetchTasks() {
       try {
-        const res = await fetch('/api/tasks')
+        const res = await apiFetch('/api/tasks')
         if (!res.ok) {
           throw new Error(`请求失败：${res.status} ${res.statusText}`)
         }

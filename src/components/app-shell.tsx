@@ -1,10 +1,12 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboardIcon,
   ListChecksIcon,
+  LogOutIcon,
   MenuIcon,
   ScrollTextIcon,
   SettingsIcon,
@@ -12,6 +14,7 @@ import {
   SwordsIcon,
 } from 'lucide-react'
 
+import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -86,6 +89,44 @@ function Brand() {
   )
 }
 
+/** 侧边栏底部：当前用户邮箱 + 退出登录 */
+function UserSection() {
+  const router = useRouter()
+  const [email, setEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setEmail(session?.user.email ?? null)
+    })
+  }, [])
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    router.replace('/login')
+  }
+
+  return (
+    <div className="flex flex-col gap-2 px-3">
+      {email && (
+        <p
+          className="truncate px-3 text-xs text-muted-foreground"
+          title={email}
+        >
+          {email}
+        </p>
+      )}
+      <Button
+        variant="ghost"
+        className="justify-start text-muted-foreground"
+        onClick={handleLogout}
+      >
+        <LogOutIcon data-icon="inline-start" />
+        退出登录
+      </Button>
+    </div>
+  )
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
@@ -103,14 +144,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <MenuIcon />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-60 p-0">
+          <SheetContent side="left" className="flex w-60 flex-col p-0">
             <SheetHeader className="h-14 justify-center border-b px-3">
               <SheetTitle>
                 <Brand />
               </SheetTitle>
             </SheetHeader>
-            <div className="py-4">
+            <div className="flex-1 py-4">
               <NavList />
+            </div>
+            <Separator />
+            <div className="py-3">
+              <UserSection />
             </div>
           </SheetContent>
         </Sheet>
@@ -118,26 +163,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="md:hidden">
           <Brand />
         </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">测试账号</span>
-          <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-            测
-          </span>
-        </div>
       </header>
 
       <div className="flex flex-1">
         {/* 侧边栏：桌面端常显，移动端隐藏 */}
-        <aside className="hidden w-60 shrink-0 border-r md:block">
+        <aside className="hidden w-60 shrink-0 border-r md:flex md:flex-col">
           <div className="flex h-14 items-center border-b">
             <Brand />
           </div>
-          <div className="py-4">
+          <div className="flex-1 py-4">
             <NavList />
           </div>
           <Separator />
-          <p className="px-6 py-4 text-xs text-muted-foreground">v0.1.0</p>
+          <div className="py-3">
+            <UserSection />
+          </div>
         </aside>
 
         {/* 内容区 */}

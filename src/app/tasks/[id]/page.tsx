@@ -29,6 +29,7 @@ import {
   severityMap,
   type Task,
 } from '@/lib/task'
+import { apiFetch } from '@/lib/api'
 
 /** 状态选项：label 为界面显示文案，value 为后端接口接受的枚举值 */
 const STATUS_OPTIONS = [
@@ -72,7 +73,7 @@ export default function TaskDetailPage({
 
   const fetchTask = useCallback(async (): Promise<Task | null> => {
     try {
-      const res = await fetch(`/api/tasks/${id}`)
+      const res = await apiFetch(`/api/tasks/${id}`)
       if (!res.ok) {
         throw new Error(`请求失败：${res.status} ${res.statusText}`)
       }
@@ -111,7 +112,7 @@ export default function TaskDetailPage({
     if (!selectedStatus || selectedStatus === task?.status) return
     setUpdating(true)
     try {
-      const res = await fetch(`/api/tasks/${id}`, {
+      const res = await apiFetch(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: selectedStatus }),
