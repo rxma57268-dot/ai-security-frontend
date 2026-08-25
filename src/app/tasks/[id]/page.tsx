@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeftIcon } from 'lucide-react'
+import { ArrowLeftIcon, ChevronDownIcon, PlayIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -27,9 +27,20 @@ import {
   formatDateTime,
   getStatusStyle,
   severityMap,
+  verdictMap,
   type Task,
 } from '@/lib/task'
 import { apiFetch } from '@/lib/api'
+
+/** 执行接口返回的判定结果 */
+interface ExecuteResult {
+  task_id: string
+  status: string
+  verdict: string | null
+  is_success?: boolean | null
+  severity?: string | null
+  error?: string
+}
 
 /** 状态选项：label 为界面显示文案，value 为后端接口接受的枚举值 */
 const STATUS_OPTIONS = [
@@ -58,6 +69,37 @@ function InfoRow({
   )
 }
 
+/** 可展开面板：默认收起，点击标题展开完整内容 */
+function ExpandablePanel({
+  title,
+  content,
+}: {
+  title: string
+  content: string
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="rounded-lg border">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/50"
+      >
+        {title}
+        <ChevronDownIcon
+          className={`size-4 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <pre className="max-h-96 overflow-auto border-t bg-muted p-3 font-mono text-sm whitespace-pre-wrap">
+          {content}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 export default function TaskDetailPage({
   params,
 }: {
@@ -70,6 +112,8 @@ export default function TaskDetailPage({
   const [selectedStatus, setSelectedStatus] = useState('')
   const [statusDirty, setStatusDirty] = useState(false)
   const [updating, setUpdating] = useState(false)
+  const [executing, setExecuting] = useState(false)
+  const [execResult, setExecResult] = useState<ExecuteResult | null>(null)
 
   const fetchTask = useCallback(async (): Promise<Task | null> => {
     try {
@@ -107,6 +151,32 @@ export default function TaskDetailPage({
       setSelectedStatus(task.status)
     }
   }, [task, statusDirty])
+
+  async function handleExecute() {
+    setExecuting(true)
+    setExecResult(null)
+    try {
+      const res = await apiFetch(`/api/tasks/${id}/execute`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        throw new Error(`执行失败：${res.status} ${res.statusText}`)
+      }
+      const result: ExecuteResult = await res.json()
+      setExecResult(result)
+      // 刷新任务数据，状态徽章/测试结果同步更新
+      await fetchTask()
+      if (result.status === '完成') {
+        toast.success('执行完成')
+      } else {
+        toast.error(result.error ?? '执行失败')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '执行请求失败')
+    } finally {
+      setExecuting(false)
+    }
+  }
 
   async function handleUpdateStatus() {
     if (!selectedStatus || selectedStatus === task?.status) return
@@ -174,6 +244,13 @@ export default function TaskDetailPage({
           <Badge className={severity.className}>{severity.label}</Badge>
         )}
         <div className="flex items-center gap-2 sm:ml-auto">
+          <Button
+            onClick={handleExecute}
+            disabled={executing || task.status === '执行中'}
+          >
+            <PlayIcon data-icon="inline-start" />
+            {executing ? '执行中...' : '执行任务'}
+          </Button>
           <Select
             value={selectedStatus}
             onValueChange={(value) => {
@@ -203,6 +280,27 @@ export default function TaskDetailPage({
           </Button>
         </div>
       </div>
+
+      {/* 执行结果回显 */}
+      {execResult && (
+        <div className="mb-6 flex items-center gap-3 rounded-lg border p-3">
+          <span className="text-sm text-muted-foreground">本次执行结果：</span>
+          {execResult.verdict && verdictMap[execResult.verdict] ? (
+            <Badge className={verdictMap[execResult.verdict].className}>
+              {verdictMap[execResult.verdict].label}
+            </Badge>
+          ) : (
+            <Badge className={getStatusStyle('失败')}>
+              {execResult.status}
+            </Badge>
+          )}
+          {execResult.error && (
+            <span className="text-sm text-destructive">
+              {execResult.error}
+            </span>
+          )}
+        </div>
+      )}
 
       <Tabs defaultValue="info">
         <TabsList>
@@ -248,29 +346,37 @@ export default function TaskDetailPage({
               <CardTitle>测试结果</CardTitle>
               <CardDescription>测试执行后的行为与结论</CardDescription>
             </CardHeader>
-            <CardContent className="divide-y">
-              <InfoRow label="是否成功">
-                {task.is_success === null ? (
-                  '—'
-                ) : task.is_success ? (
-                  <Badge className="bg-green-500/15 text-green-600 dark:text-green-400">
-                    是
-                  </Badge>
-                ) : (
-                  <Badge className="bg-red-500/15 text-red-600 dark:text-red-400">
-                    否
-                  </Badge>
-                )}
-              </InfoRow>
-              <InfoRow label="实际行为">
-                {task.actual_behavior ?? '—'}
-              </InfoRow>
-              <InfoRow label="预期行为">
-                {task.expected_behavior ?? '—'}
-              </InfoRow>
-              <InfoRow label="已回归测试">
-                {task.regression_tested ? '是' : '否'}
-              </InfoRow>
+            <CardContent className="flex flex-col gap-4">
+              <div className="grid gap-1 sm:grid-cols-[8rem_1fr] sm:gap-4">
+                <span className="text-sm text-muted-foreground">是否成功</span>
+                <span className="text-sm">
+                  {task.is_success === null ? (
+                    '—'
+                  ) : task.is_success ? (
+                    <Badge className="bg-green-500/15 text-green-600 dark:text-green-400">
+                      是
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-red-500/15 text-red-600 dark:text-red-400">
+                      否
+                    </Badge>
+                  )}
+                </span>
+              </div>
+              <ExpandablePanel
+                title="实际行为（模型响应）"
+                content={task.actual_behavior ?? '暂无'}
+              />
+              <ExpandablePanel
+                title="预期行为"
+                content={task.expected_behavior ?? '暂无'}
+              />
+              <div className="grid gap-1 sm:grid-cols-[8rem_1fr] sm:gap-4">
+                <span className="text-sm text-muted-foreground">已回归测试</span>
+                <span className="text-sm">
+                  {task.regression_tested ? '是' : '否'}
+                </span>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
