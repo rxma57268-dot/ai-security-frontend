@@ -243,6 +243,11 @@ export default function TaskDetailPage({
         {severity && (
           <Badge className={severity.className}>{severity.label}</Badge>
         )}
+        {task.needs_review && (
+          <Badge className="bg-yellow-500/15 text-yellow-600 dark:text-yellow-400">
+            需人工复核
+          </Badge>
+        )}
         <div className="flex items-center gap-2 sm:ml-auto">
           <Button
             onClick={handleExecute}
