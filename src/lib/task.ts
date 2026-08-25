@@ -24,7 +24,13 @@ export interface AttackPattern {
   attack_category: string | null
   attack_sub_type: string | null
   target_component: string | null
+  attack_vector: string | null
+  payload_template: string | null
   default_severity: string | null
+  success_patterns: string[] | null
+  refusal_patterns: string[] | null
+  mitigation: string | null
+  created_at: string | null
 }
 
 /** 任务状态徽章样式：待执行=灰、执行中=蓝、完成=绿、失败=红 */
@@ -46,6 +52,22 @@ export const severityMap: Record<string, { label: string; className: string }> =
   medium: { label: '中危', className: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400' },
   low: { label: '低危', className: 'bg-blue-500/15 text-blue-600 dark:text-blue-400' },
   info: { label: '信息', className: 'bg-gray-500/15 text-gray-600 dark:text-gray-400' },
+}
+
+/** 判定结果：攻击成功=红、防御成功=绿、不确定=黄 */
+export const verdictMap: Record<string, { label: string; className: string }> = {
+  attack_success: {
+    label: '攻击成功',
+    className: 'bg-red-500/15 text-red-600 dark:text-red-400',
+  },
+  defense_success: {
+    label: '防御成功',
+    className: 'bg-green-500/15 text-green-600 dark:text-green-400',
+  },
+  uncertain: {
+    label: '不确定',
+    className: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
+  },
 }
 
 export function formatDateTime(value: string | null): string {
