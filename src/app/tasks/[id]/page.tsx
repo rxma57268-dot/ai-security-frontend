@@ -28,6 +28,7 @@ import {
   getStatusStyle,
   severityMap,
   verdictMap,
+  verdictSourceMap,
   type Task,
 } from '@/lib/task'
 import { apiFetch } from '@/lib/api'
@@ -37,6 +38,7 @@ interface ExecuteResult {
   task_id: string
   status: string
   verdict: string | null
+  verdict_source?: string | null
   is_success?: boolean | null
   severity?: string | null
   error?: string
@@ -299,6 +301,12 @@ export default function TaskDetailPage({
               {execResult.status}
             </Badge>
           )}
+          {execResult.verdict_source && (
+            <span className="text-xs text-muted-foreground">
+              {verdictSourceMap[execResult.verdict_source] ??
+                execResult.verdict_source}
+            </span>
+          )}
           {execResult.error && (
             <span className="text-sm text-destructive">
               {execResult.error}
@@ -365,6 +373,12 @@ export default function TaskDetailPage({
                     <Badge className="bg-red-500/15 text-red-600 dark:text-red-400">
                       否
                     </Badge>
+                  )}
+                  {task.verdict_source && (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {verdictSourceMap[task.verdict_source] ??
+                        task.verdict_source}
+                    </span>
                   )}
                 </span>
               </div>
