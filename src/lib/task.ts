@@ -72,8 +72,14 @@ export const verdictMap: Record<string, { label: string; className: string }> = 
   },
 }
 
-export function formatDateTime(value: string | null): string {
-  if (!value) return '—'
+/** 判定来源：regex=规则裁判、llm=裁判模型、platform_filter=平台内容过滤 */
+export const verdictSourceMap: Record<string, string> = {
+  regex: '规则判定',
+  llm: 'LLM 判定',
+  platform_filter: '平台过滤',
+}
+
+export function formatDateTime(value: string | null): string {  if (!value) return '—'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN')
 }
