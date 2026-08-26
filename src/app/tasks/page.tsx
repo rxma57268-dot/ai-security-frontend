@@ -202,6 +202,11 @@ export default function TasksPage() {
                         <Badge className={getStatusStyle(task.status)}>
                           {task.status}
                         </Badge>
+                        {task.needs_review && (
+                          <Badge className="ml-1.5 bg-yellow-500/15 text-yellow-600 dark:text-yellow-400">
+                            需复核
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {task.severity && severityMap[task.severity] ? (

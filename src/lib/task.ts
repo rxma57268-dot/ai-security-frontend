@@ -14,6 +14,8 @@ export interface Task {
   expected_behavior: string | null
   evidence: string | null
   regression_tested: boolean
+  verdict_source: string | null
+  needs_review: boolean | null
   created_at: string
   updated_at: string | null
 }
