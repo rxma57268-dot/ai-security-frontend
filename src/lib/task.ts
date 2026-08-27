@@ -79,6 +79,41 @@ export const verdictSourceMap: Record<string, string> = {
   platform_filter: '平台过滤',
 }
 
+/** 多轮探测的一轮（probe_turns 表） */
+export interface ProbeTurn {
+  id: string
+  task_id: string
+  round_no: number
+  agent_thought: string | null
+  action: string | null
+  pattern_id: string | null
+  payload: string
+  response: string | null
+  verdict: string | null
+  verdict_source: string | null
+  created_at: string | null
+}
+
+/** 探测 Agent 动作类型徽章：追问=蓝、切换模式=紫、验证劫持=橙、终止=灰 */
+export const actionMap: Record<string, { label: string; className: string }> = {
+  follow_up: {
+    label: '追问',
+    className: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+  },
+  switch_pattern: {
+    label: '切换模式',
+    className: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+  },
+  verify_hijack: {
+    label: '验证劫持',
+    className: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+  },
+  stop: {
+    label: '终止',
+    className: 'bg-gray-500/15 text-gray-600 dark:text-gray-400',
+  },
+}
+
 export function formatDateTime(value: string | null): string {  if (!value) return '—'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN')

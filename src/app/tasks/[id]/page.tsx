@@ -24,11 +24,13 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+  actionMap,
   formatDateTime,
   getStatusStyle,
   severityMap,
   verdictMap,
   verdictSourceMap,
+  type ProbeTurn,
   type Task,
 } from '@/lib/task'
 import { apiFetch } from '@/lib/api'
@@ -102,6 +104,71 @@ function ExpandablePanel({
   )
 }
 
+/** 探测时间线节点：一轮 = 一个节点，点击展开看完整交互与 Agent 思考 */
+function TurnNode({ turn }: { turn: ProbeTurn }) {
+  const [open, setOpen] = useState(false)
+  const action = turn.action ? actionMap[turn.action] : undefined
+  const verdict = turn.verdict ? verdictMap[turn.verdict] : undefined
+
+  return (
+    <div className="rounded-lg border">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
+      >
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
+          {turn.round_no}
+        </span>
+        {action && <Badge className={action.className}>{action.label}</Badge>}
+        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+          {turn.payload}
+        </span>
+        {verdict && (
+          <Badge className={verdict.className}>{verdict.label}</Badge>
+        )}
+        <ChevronDownIcon
+          className={`size-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="flex flex-col gap-3 border-t p-3">
+          {turn.agent_thought && (
+            <div className="rounded-md border-l-2 border-purple-500/60 bg-purple-500/5 px-3 py-2">
+              <p className="mb-1 text-xs font-medium text-purple-600 dark:text-purple-400">
+                Agent 思考
+              </p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {turn.agent_thought}
+              </p>
+            </div>
+          )}
+          <div>
+            <p className="mb-1 text-xs text-muted-foreground">
+              Payload（发给目标模型）
+            </p>
+            <pre className="max-h-48 overflow-auto rounded-md bg-muted p-2 font-mono text-xs whitespace-pre-wrap">
+              {turn.payload}
+            </pre>
+          </div>
+          <div>
+            <p className="mb-1 text-xs text-muted-foreground">目标响应</p>
+            <pre className="max-h-48 overflow-auto rounded-md bg-muted p-2 font-mono text-xs whitespace-pre-wrap">
+              {turn.response ?? '（无响应）'}
+            </pre>
+          </div>
+          {turn.verdict_source && (
+            <span className="text-xs text-muted-foreground">
+              判定来源：
+              {verdictSourceMap[turn.verdict_source] ?? turn.verdict_source}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function TaskDetailPage({
   params,
 }: {
@@ -116,6 +183,19 @@ export default function TaskDetailPage({
   const [updating, setUpdating] = useState(false)
   const [executing, setExecuting] = useState(false)
   const [execResult, setExecResult] = useState<ExecuteResult | null>(null)
+  const [turns, setTurns] = useState<ProbeTurn[]>([])
+
+  // 多轮探测轮次（单轮任务没有 turns，静默为空数组）
+  const fetchTurns = useCallback(async () => {
+    try {
+      const res = await apiFetch(`/api/tasks/${id}/turns`)
+      if (res.ok) {
+        setTurns(await res.json())
+      }
+    } catch {
+      // turns 拉取失败不打扰主流程
+    }
+  }, [id])
 
   const fetchTask = useCallback(async (): Promise<Task | null> => {
     try {
@@ -126,6 +206,10 @@ export default function TaskDetailPage({
       const data: Task = await res.json()
       setTask(data)
       setError(null)
+      // 探测轮次在任务结束时批量落库，任务到终态后再拉取
+      if (data.status === '完成' || data.status === '失败') {
+        void fetchTurns()
+      }
       return data
     } catch (err) {
       setError(err instanceof Error ? err.message : '获取任务详情失败')
@@ -133,7 +217,7 @@ export default function TaskDetailPage({
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, fetchTurns])
 
   // 初始加载
   useEffect(() => {
@@ -405,22 +489,34 @@ export default function TaskDetailPage({
           <Card>
             <CardHeader>
               <CardTitle>执行日志</CardTitle>
-              <CardDescription>Payload 与证据信息</CardDescription>
+              <CardDescription>
+                {turns.length > 0
+                  ? '多轮探测时间线：每轮 = Agent 决策 → 目标响应 → 裁判判定'
+                  : 'Payload 与证据信息'}
+              </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div>
-                <p className="mb-2 text-sm text-muted-foreground">Payload</p>
-                <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-sm whitespace-pre-wrap">
-                  {task.payload}
-                </pre>
-              </div>
-              <div>
-                <p className="mb-2 text-sm text-muted-foreground">证据</p>
-                <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-sm whitespace-pre-wrap">
-                  {task.evidence ?? '暂无证据'}
-                </pre>
-              </div>
-            </CardContent>
+            {turns.length > 0 ? (
+              <CardContent className="flex flex-col gap-2">
+                {turns.map((t) => (
+                  <TurnNode key={t.id} turn={t} />
+                ))}
+              </CardContent>
+            ) : (
+              <CardContent className="flex flex-col gap-4">
+                <div>
+                  <p className="mb-2 text-sm text-muted-foreground">Payload</p>
+                  <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-sm whitespace-pre-wrap">
+                    {task.payload}
+                  </pre>
+                </div>
+                <div>
+                  <p className="mb-2 text-sm text-muted-foreground">证据</p>
+                  <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-sm whitespace-pre-wrap">
+                    {task.evidence ?? '暂无证据'}
+                  </pre>
+                </div>
+              </CardContent>
+            )}
           </Card>
         </TabsContent>
       </Tabs>
