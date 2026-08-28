@@ -182,6 +182,7 @@ export default function TaskDetailPage({
   const [statusDirty, setStatusDirty] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [executing, setExecuting] = useState(false)
+  const [probing, setProbing] = useState(false)
   const [execResult, setExecResult] = useState<ExecuteResult | null>(null)
   const [turns, setTurns] = useState<ProbeTurn[]>([])
 
@@ -264,6 +265,24 @@ export default function TaskDetailPage({
     }
   }
 
+  async function handleProbe() {
+    setProbing(true)
+    try {
+      const res = await apiFetch(`/api/tasks/${id}/probe`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        throw new Error(`探测启动失败：${res.status} ${res.statusText}`)
+      }
+      // 202：后台执行，不读结果不调 fetchTask——5 秒轮询自己会带回来
+      toast.success('探测已启动，完成后自动刷新')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '探测请求失败')
+    } finally {
+      setProbing(false)
+    }
+  }
+
   async function handleUpdateStatus() {
     if (!selectedStatus || selectedStatus === task?.status) return
     setUpdating(true)
@@ -337,10 +356,17 @@ export default function TaskDetailPage({
         <div className="flex items-center gap-2 sm:ml-auto">
           <Button
             onClick={handleExecute}
-            disabled={executing || task.status === '执行中'}
+            disabled={executing || probing || task.status === '执行中'}
           >
             <PlayIcon data-icon="inline-start" />
             {executing ? '执行中...' : '执行任务'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleProbe}
+            disabled={probing || task.status === '执行中'}
+          >
+            {probing ? '探测中...' : '多轮探测'}
           </Button>
           <Select
             value={selectedStatus}
