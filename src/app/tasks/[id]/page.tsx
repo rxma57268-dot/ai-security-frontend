@@ -274,7 +274,9 @@ export default function TaskDetailPage({
       if (!res.ok) {
         throw new Error(`探测启动失败：${res.status} ${res.statusText}`)
       }
-      // 202：后台执行，不读结果不调 fetchTask——5 秒轮询自己会带回来
+      // 202：后台执行，不等结果。乐观更新本地状态为「执行中」——
+      // 轮询 effect 的启动条件是 status === '执行中'，不更新就永远不会轮询
+      setTask((t) => (t ? { ...t, status: '执行中' } : t))
       toast.success('探测已启动，完成后自动刷新')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '探测请求失败')
