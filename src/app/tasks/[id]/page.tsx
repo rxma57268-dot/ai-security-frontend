@@ -25,11 +25,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   actionMap,
+  defenseSignatureMap,
   formatDateTime,
   getStatusStyle,
   severityMap,
   verdictMap,
   verdictSourceMap,
+  type ProbeRun,
   type ProbeTurn,
   type Task,
 } from '@/lib/task'
@@ -109,6 +111,9 @@ function TurnNode({ turn }: { turn: ProbeTurn }) {
   const [open, setOpen] = useState(false)
   const action = turn.action ? actionMap[turn.action] : undefined
   const verdict = turn.verdict ? verdictMap[turn.verdict] : undefined
+  const signature = turn.defense_signature
+    ? defenseSignatureMap[turn.defense_signature]
+    : undefined
 
   return (
     <div className="rounded-lg border">
@@ -126,6 +131,9 @@ function TurnNode({ turn }: { turn: ProbeTurn }) {
         </span>
         {verdict && (
           <Badge className={verdict.className}>{verdict.label}</Badge>
+        )}
+        {signature && (
+          <Badge className={signature.className}>{signature.label}</Badge>
         )}
         <ChevronDownIcon
           className={`size-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
@@ -163,6 +171,27 @@ function TurnNode({ turn }: { turn: ProbeTurn }) {
               {verdictSourceMap[turn.verdict_source] ?? turn.verdict_source}
             </span>
           )}
+          {turn.judge_reason && (
+            <div className="rounded-md border-l-2 border-sky-500/60 bg-sky-500/5 px-3 py-2">
+              <p className="mb-1 text-xs font-medium text-sky-600 dark:text-sky-400">
+                裁判理由
+              </p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {turn.judge_reason}
+              </p>
+              {turn.judge_evidence && (
+                <pre className="mt-1 max-h-32 overflow-auto rounded bg-muted p-2 font-mono text-xs whitespace-pre-wrap">
+                  {turn.judge_evidence}
+                </pre>
+              )}
+            </div>
+          )}
+          {turn.tool_calls && turn.tool_calls.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              手法链：
+              {turn.tool_calls.map((c) => c.tool).join(' → ')}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -185,16 +214,37 @@ export default function TaskDetailPage({
   const [probing, setProbing] = useState(false)
   const [execResult, setExecResult] = useState<ExecuteResult | null>(null)
   const [turns, setTurns] = useState<ProbeTurn[]>([])
+  const [runs, setRuns] = useState<ProbeRun[]>([])
+  const [selectedRunId, setSelectedRunId] = useState<string>('')
 
-  // 多轮探测轮次（单轮任务没有 turns，静默为空数组）
-  const fetchTurns = useCallback(async () => {
+  // 探测历史（append-only）：最新 run 默认选中，可切换查看历史 run 的轮次
+  const fetchTurns = useCallback(
+    async (runId?: string) => {
+      try {
+        const qs = runId ? `?probe_run_id=${runId}` : ''
+        const res = await apiFetch(`/api/tasks/${id}/turns${qs}`)
+        if (res.ok) {
+          setTurns(await res.json())
+        }
+      } catch {
+        // turns 拉取失败不打扰主流程
+      }
+    },
+    [id]
+  )
+
+  const fetchRuns = useCallback(async () => {
     try {
-      const res = await apiFetch(`/api/tasks/${id}/turns`)
+      const res = await apiFetch(`/api/tasks/${id}/runs`)
       if (res.ok) {
-        setTurns(await res.json())
+        const data: ProbeRun[] = await res.json()
+        setRuns(data)
+        if (data.length > 0) {
+          setSelectedRunId((prev) => prev || data[0].id)
+        }
       }
     } catch {
-      // turns 拉取失败不打扰主流程
+      // 历史账本缺失（迁移未执行）不影响主流程
     }
   }, [id])
 
@@ -209,7 +259,8 @@ export default function TaskDetailPage({
       setError(null)
       // 探测轮次在任务结束时批量落库，任务到终态后再拉取
       if (data.status === '完成' || data.status === '失败') {
-        void fetchTurns()
+        void fetchTurns(selectedRunId || undefined)
+        void fetchRuns()
       }
       return data
     } catch (err) {
@@ -218,7 +269,7 @@ export default function TaskDetailPage({
     } finally {
       setLoading(false)
     }
-  }, [id, fetchTurns])
+  }, [id, fetchTurns, fetchRuns, selectedRunId])
 
   // 初始加载
   useEffect(() => {
@@ -502,6 +553,35 @@ export default function TaskDetailPage({
                 title="预期行为"
                 content={task.expected_behavior ?? '暂无'}
               />
+              {task.judge_reason && (
+                <ExpandablePanel
+                  title="裁判理由与证据"
+                  content={`${task.judge_reason}${
+                    task.judge_evidence ? `\n\n证据原文：\n${task.judge_evidence}` : ''
+                  }`}
+                />
+              )}
+              <div className="grid gap-1 sm:grid-cols-[8rem_1fr] sm:gap-4">
+                <span className="text-sm text-muted-foreground">靶模型版本</span>
+                <span className="font-mono text-sm">
+                  {task.target_model ?? '—'}
+                </span>
+              </div>
+              {task.defense_signature && (
+                <div className="grid gap-1 sm:grid-cols-[8rem_1fr] sm:gap-4">
+                  <span className="text-sm text-muted-foreground">防御签名</span>
+                  <span className="text-sm">
+                    <Badge
+                      className={
+                        defenseSignatureMap[task.defense_signature]?.className
+                      }
+                    >
+                      {defenseSignatureMap[task.defense_signature]?.label ??
+                        task.defense_signature}
+                    </Badge>
+                  </span>
+                </div>
+              )}
               <div className="grid gap-1 sm:grid-cols-[8rem_1fr] sm:gap-4">
                 <span className="text-sm text-muted-foreground">已回归测试</span>
                 <span className="text-sm">
@@ -516,12 +596,37 @@ export default function TaskDetailPage({
         <TabsContent value="log">
           <Card>
             <CardHeader>
-              <CardTitle>执行日志</CardTitle>
-              <CardDescription>
-                {turns.length > 0
-                  ? '多轮探测时间线：每轮 = Agent 决策 → 目标响应 → 裁判判定'
-                  : 'Payload 与证据信息'}
-              </CardDescription>
+              <div className="flex flex-wrap items-center gap-3">
+                <div>
+                  <CardTitle>执行日志</CardTitle>
+                  <CardDescription>
+                    {turns.length > 0
+                      ? '多轮探测时间线：每轮 = Agent 决策 → 目标响应 → 裁判判定'
+                      : 'Payload 与证据信息'}
+                  </CardDescription>
+                </div>
+                {runs.length > 1 && (
+                  <Select
+                    value={selectedRunId}
+                    onValueChange={(value) => {
+                      setSelectedRunId(value)
+                      void fetchTurns(value)
+                    }}
+                  >
+                    <SelectTrigger className="ml-auto w-64">
+                      <SelectValue placeholder="选择探测历史" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {runs.map((r, i) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          第 {runs.length - i} 次 · {r.probe_mode ?? '—'} ·{' '}
+                          {r.target_model ?? '—'} · {formatDateTime(r.created_at)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </CardHeader>
             {turns.length > 0 ? (
               <CardContent className="flex flex-col gap-2">

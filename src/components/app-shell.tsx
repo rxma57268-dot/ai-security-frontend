@@ -30,7 +30,7 @@ const navItems = [
   { label: '仪表盘', href: '/', icon: LayoutDashboardIcon, enabled: false },
   { label: '任务列表', href: '/tasks', icon: ListChecksIcon, enabled: true },
   { label: '攻击模式库', href: '/patterns', icon: SwordsIcon, enabled: true },
-  { label: '测试报告', href: '/reports', icon: ScrollTextIcon, enabled: false },
+  { label: '测试报告', href: '/reports', icon: ScrollTextIcon, enabled: true },
   { label: '设置', href: '/settings', icon: SettingsIcon, enabled: false },
 ]
 
